@@ -1090,18 +1090,27 @@ function updateDisplayedNotesToPlay(isErrorMap = false, keepNoteScope=false) {
   if (testOptions.isFreePlay) {
 
         const timesofar = getTodayFreePlayTime();
+        const currentSelfEval = getFreePlaySelfEval(testOptions.shortName);
         document.getElementById("noteDisplayAreaMenuDiv").style.display = "none";
         document.getElementById("timeSigDiv").style.display = "none";
 
         document.getElementById("notesRH").innerHTML =
            "<p style=font-size:x-large;padding-left:20px>Free Play: "+
               testOptions.shortName+"<br>"+testOptions.fullName+"</p>"+
-           "<br><div style=display:flex;align-items:center>"+
+           "<br><div style=display:flex;align-items:center;flex-wrap:wrap;gap:8px>"+
            "<span style=padding-left:20px>Manually set minutes:&nbsp;</span>"+
            "<input id=freePlayManualInput type=number value='"+timesofar+
                 "' min=0 max=99 step=0.1 style=width:5em;text-align:center;background-color:rgba(255,255,255,0.5)>"+
            "&nbsp;<button onclick=logFreePlayManualTime() style=background-color:rgba(255,255,255,0.5)>SAVE</button>"+
            "<span id=freePlaySaveMessage></span>"+
+           "&nbsp;&nbsp;<span style=padding-left:10px>Self-Eval:&nbsp;</span>"+
+           "<select id=freePlaySelfEval onchange='saveFreePlaySelfEval(this.value)' style=background-color:rgba(255,255,255,0.5)>"+
+           "<option value='not_evaluated'"+(currentSelfEval==='not_evaluated'?' selected':'')+">&#8212; Not Evaluated</option>"+
+           "<option value='perfect'"+(currentSelfEval==='perfect'?' selected':'')+">&#9733;&#9733;&#9733; Perfect</option>"+
+           "<option value='good'"+(currentSelfEval==='good'?' selected':'')+">&#9733;&#9733; Good</option>"+
+           "<option value='fair'"+(currentSelfEval==='fair'?' selected':'')+">&#9733; Fair</option>"+
+           "<option value='poor'"+(currentSelfEval==='poor'?' selected':'')+">Poor</option>"+
+           "</select>"+
            "</div>"+
            "<p style=padding-left:20px>Note: Free Play time data is not logged unless clock is started then stopped or a manual time is entered.<br>Manual entries REPLACE data for today. Clock times ADD to data for today.</p>";
         document.getElementById("notesLH").innerHTML = "";
