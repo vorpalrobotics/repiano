@@ -15,9 +15,15 @@ function deepcopy(obj) {
 const freePlayTargetDays = { begin: 1, refine: 2, maintain: 7, archive: 60 };
 const freePlayEvalOffsets = { perfect: -10, good: -5, not_evaluated: 0, fair: 15, poor: 30 };
 
+function daysSinceFloat(date) {
+  const [y, m, d] = date.split('-').map(Number);
+  const past = new Date(y, m - 1, d, 0, 0, 0, 0); // local midnight of practice date
+  return (Date.now() - past) / (1000 * 60 * 60 * 24);
+}
+
 function computeBasePriority(mode, lastDate) {
   if (!lastDate) return 70;
-  const days = daysSince(lastDate);
+  const days = daysSinceFloat(lastDate);
   const target = freePlayTargetDays[mode] || 7;
   return Math.min(99, Math.floor(100 * (1 - Math.pow(0.5, days / target))));
 }
@@ -229,7 +235,10 @@ function formatPriorityCell(itemName, statsCache) {
   else if (priority < 75) color = '#a60';
   else color = '#900';
 
-  return `<i class="${iconClass}" style="opacity:0.6;font-size:small"></i>&nbsp;<span style="color:${color};font-weight:bold">${priority}</span>`;
+  const evalGlyph = { perfect: '★★★', good: '★★', fair: '★', poor: '☹', not_evaluated: '' }[selfEval] || '';
+
+  return `<i class="${iconClass}" style="opacity:0.6;font-size:small"></i>&nbsp;<span style="color:${color};font-weight:bold">${priority}</span>` +
+         (evalGlyph ? `<br><span style="font-size:x-small">${evalGlyph}</span>` : '');
 }
 
 // Track current sort state
