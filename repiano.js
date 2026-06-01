@@ -1105,11 +1105,11 @@ function updateDisplayedNotesToPlay(isErrorMap = false, keepNoteScope=false) {
            "<span id=freePlaySaveMessage></span>"+
            "&nbsp;&nbsp;<span style=padding-left:10px>Self-Eval:&nbsp;</span>"+
            "<select id=freePlaySelfEval onchange='saveFreePlaySelfEval(this.value)' style=background-color:rgba(255,255,255,0.5)>"+
-           "<option value='not_evaluated'"+(currentSelfEval==='not_evaluated'?' selected':'')+">&#8212; Not Evaluated</option>"+
+           "<option value='not_evaluated'"+(currentSelfEval==='not_evaluated'?' selected':'')+">None</option>"+
            "<option value='perfect'"+(currentSelfEval==='perfect'?' selected':'')+">&#9733;&#9733;&#9733; Perfect</option>"+
            "<option value='good'"+(currentSelfEval==='good'?' selected':'')+">&#9733;&#9733; Good</option>"+
            "<option value='fair'"+(currentSelfEval==='fair'?' selected':'')+">&#9733; Fair</option>"+
-           "<option value='poor'"+(currentSelfEval==='poor'?' selected':'')+">Poor</option>"+
+           "<option value='poor'"+(currentSelfEval==='poor'?' selected':'')+">&#9785; Poor</option>"+
            "</select>"+
            "</div>"+
            "<p style=padding-left:20px>Note: Free Play time data is not logged unless clock is started then stopped or a manual time is entered.<br>Manual entries REPLACE data for today. Clock times ADD to data for today.</p>";
