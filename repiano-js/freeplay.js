@@ -12,6 +12,22 @@ function deepcopy(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+const freePlayTargetDays = { begin: 1, refine: 2, maintain: 7, archive: 60 };
+const freePlayEvalOffsets = { perfect: -10, good: -5, not_evaluated: 0, fair: 15, poor: 30 };
+
+function computeBasePriority(mode, lastDate) {
+  if (!lastDate) return 70;
+  const days = daysSince(lastDate);
+  const target = freePlayTargetDays[mode] || 7;
+  return Math.min(99, Math.floor(100 * (1 - Math.pow(0.5, days / target))));
+}
+
+function computePriority(mode, lastDate, selfEval) {
+  const base = computeBasePriority(mode, lastDate);
+  const offset = freePlayEvalOffsets[selfEval] ?? 0;
+  return Math.max(0, Math.min(99, base + offset));
+}
+
 async function saveFreePlay() {
   console.log("SAVING FREEPLAY IN HISTORY, records:"+freePlay.length);
   runHistory[".PREF.FREEPLAY"] = deepcopy(freePlay); // deep copy
@@ -158,18 +174,27 @@ function buildPracticeStatsCache() {
       stats[itemName].totalTime += elapsed;
     }
   }
-  
+
+  // Add learning mode and self-eval for all known free play items
+  for (const item of freePlay) {
+    if (!stats[item.name]) {
+      stats[item.name] = { lastDate: null, totalTime: 0 };
+    }
+    stats[item.name].learningMode = avail(runHistory[".PREF.LEARNINGSCHEDULE." + stripPresetModifiers(item.name)], "begin");
+    stats[item.name].selfEval = avail(runHistory[".PREF.SELFEVAL." + item.name], "not_evaluated");
+  }
+
   return stats;
 }
 
 // Format practice statistics for display
 function formatPracticeStats(itemName, statsCache) {
   const stats = statsCache[itemName];
-  
-  if (!stats) {
+
+  if (!stats || !stats.lastDate) {
     return "<span style='color:#999'>last: never<br>total: 0h</span>";
   }
-  
+
   const daysSinceLast = daysSince(stats.lastDate);
   const totalFormatted = formatTimeAsDaysHours(stats.totalTime);
   
@@ -189,6 +214,24 @@ function formatPracticeStats(itemName, statsCache) {
          `<span style='color:#666'>total: ${totalFormatted}</span>`;
 }
 
+function formatPriorityCell(itemName, statsCache) {
+  const stats = statsCache[itemName];
+  const mode = stats ? (stats.learningMode || 'begin') : 'begin';
+  const selfEval = stats ? (stats.selfEval || 'not_evaluated') : 'not_evaluated';
+  const lastDate = stats ? stats.lastDate : null;
+
+  const priority = computePriority(mode, lastDate, selfEval);
+  const iconClass = learningScheduleIconName[mode] || learningScheduleIconName['begin'];
+
+  let color;
+  if (priority < 20) color = '#0a0';
+  else if (priority < 50) color = '#770';
+  else if (priority < 75) color = '#a60';
+  else color = '#900';
+
+  return `<i class="${iconClass}" style="opacity:0.6;font-size:small"></i>&nbsp;<span style="color:${color};font-weight:bold">${priority}</span>`;
+}
+
 // Track current sort state
 let freePlaySortBy = 'practice'; // 'name', 'practice', 'category'
 let freePlaySortDirection = 'asc'; // 'asc' or 'desc'
@@ -199,7 +242,7 @@ function sortFreePlayBy(column) {
     freePlaySortDirection = freePlaySortDirection === 'asc' ? 'desc' : 'asc';
   } else {
     freePlaySortBy = column;
-    freePlaySortDirection = 'asc';
+    freePlaySortDirection = column === 'priority' ? 'desc' : 'asc';
   }
   displayFreePlay();
 }
@@ -239,7 +282,7 @@ function displayFreePlay(edit=-1) {
       // Sort by days since last practice (most recent first when asc)
       const statsA = practiceStats[a.name];
       const statsB = practiceStats[b.name];
-      
+
       // Items never practiced go to the end
       if (!statsA && !statsB) comparison = 0;
       else if (!statsA) comparison = 1;
@@ -249,6 +292,20 @@ function displayFreePlay(edit=-1) {
         const daysB = daysSince(statsB.lastDate);
         comparison = daysA - daysB; // ascending = most recent first (0d, 1d, 2d...)
       }
+    } else if (freePlaySortBy === 'priority') {
+      const statsA = practiceStats[a.name];
+      const statsB = practiceStats[b.name];
+      const priorityA = computePriority(
+        statsA ? (statsA.learningMode || 'begin') : 'begin',
+        statsA ? statsA.lastDate : null,
+        statsA ? (statsA.selfEval || 'not_evaluated') : 'not_evaluated'
+      );
+      const priorityB = computePriority(
+        statsB ? (statsB.learningMode || 'begin') : 'begin',
+        statsB ? statsB.lastDate : null,
+        statsB ? (statsB.selfEval || 'not_evaluated') : 'not_evaluated'
+      );
+      comparison = priorityA - priorityB;
     }
     
     return freePlaySortDirection === 'asc' ? comparison : -comparison;
@@ -263,11 +320,13 @@ function displayFreePlay(edit=-1) {
     if (edit == i) {
       // this item is being edited
       const stats = formatPracticeStats(freePlay[i].name, practiceStats);
+      const editPriorityCell = formatPriorityCell(freePlay[i].name, practiceStats);
       t +=
         "<tr data-index="+i+">"+
         "<td><strong><em>EDIT</em></strong></td>"+ // no drag symbol while editing
         "<td style=font-weight:bold>"+freePlay[i].name+"</td>"+
         "<td style='font-size:small;white-space:nowrap'>"+stats+"</td>"+
+        "<td style='font-size:small;text-align:center;white-space:nowrap;padding:4px'>"+editPriorityCell+"</td>"+
         "<td><input type=text id=freePlayEditDescription value='"+freePlay[i].description+"' maxlength=100 style=width:95%;x-overflow:auto></td>"+
         "<td><select id=freePlayEditCategory>";
         presetCats.forEach(cat => {
@@ -288,10 +347,12 @@ function displayFreePlay(edit=-1) {
     t += "<tr draggable=true id=freeplay_"+i+" data-index="+i+"><td style=text-align:center;min-width:2em;padding:4px>&vellip;&vellip;</td>";
 
     const stats = formatPracticeStats(freePlay[i].name, practiceStats);
+    const priorityCell = formatPriorityCell(freePlay[i].name, practiceStats);
     const cat = presetCats.find(cat => cat.name === freePlay[i].category);
     t += "<td onclick='gotoPreset(\""+freePlay[i].name+"\",\"freePlayContainer\")' title='Load this preset in the practice area' style=cursor:pointer>"+
           "<i class=\"fa-solid fa-square-arrow-up-right\" style=opacity:0.3;padding:3px></i> "+freePlay[i].name+"</td>"+
           "<td style='font-size:small;white-space:nowrap;padding:4px'>"+stats+"</td>"+
+          "<td style='font-size:small;text-align:center;white-space:nowrap;padding:4px'>"+priorityCell+"</td>"+
           "<td>"+freePlay[i].description+"</td>"+
           "<td>"+avail(cat.description,'Miscellaneous')+"</td>";
     if (freePlay[i].deleted) {
@@ -311,6 +372,7 @@ function displayFreePlay(edit=-1) {
                  " title='Create a new Free Play item' style=font-size:x-large;font-weight:bold;cursor:pointer>&#65291;</div></td>"+
     "<td><input type=text id=freePlayName placeholder='New item short name' maxlength=32></td>"+
     "<td></td>"+ // empty Practice column for new item row
+    "<td></td>"+ // empty Priority column for new item row
     "<td><input type=text id=freePlayDescription placeholder='New item description of practice activity' maxlength=100 style=width:95%;x-overflow:auto></td>"+
     "<td><select id=freePlayCategory>";
     presetCats.forEach(cat => {
@@ -324,7 +386,8 @@ function displayFreePlay(edit=-1) {
   const indicators = {
     name: document.getElementById("sortIndicatorName"),
     practice: document.getElementById("sortIndicatorPractice"),
-    category: document.getElementById("sortIndicatorCategory")
+    category: document.getElementById("sortIndicatorCategory"),
+    priority: document.getElementById("sortIndicatorPriority")
   };
   
   // Clear all indicators
@@ -356,7 +419,7 @@ function displayFreePlay(edit=-1) {
           placeholder = document.createElement('tr');
           placeholder.style.border = "3px dashed #ccc"; // Example styling
           placeholder.style.height = `${row.offsetHeight}px`; // Match the height of the original row
-          placeholder.innerHTML = "<td colspan='6' style=text-align:center;background-color:lightgray>"+
+          placeholder.innerHTML = "<td colspan='8' style=text-align:center;background-color:lightgray>"+
             "MOVING: <strong>"+ row.cells[1].textContent+"</strong></td>"; // Adjust colspan as needed
 
           // Insert placeholder
@@ -474,4 +537,16 @@ async function saveEditFreePlay(edit) {
     displayFreePlay();
     createPresetMenu(); // item modified
   }
+}
+
+function getFreePlaySelfEval(name) {
+  return avail(runHistory ? runHistory[".PREF.SELFEVAL." + name] : null, "not_evaluated");
+}
+
+async function saveFreePlaySelfEval(evalValue) {
+  if (!testOptions.isFreePlay) return;
+  const name = testOptions.shortName;
+  if (runHistory === null) await loadRunHistory();
+  runHistory[".PREF.SELFEVAL." + name] = evalValue;
+  await saveRunHistory();
 }
