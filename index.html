@@ -1175,6 +1175,15 @@ will generally be shorter than your clock time at the keyboard practicing, depen
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
+  <!-- Toast notification -->
+  <div id="toastContainer" style="display:none;position:fixed;bottom:20px;left:20px;z-index:4000000;background:#333;color:#fff;padding:12px 16px;border-radius:6px;box-shadow:2px 2px 10px rgba(0,0,0,0.5);font-size:14px;max-width:300px;border-left:4px solid #555">
+    <span id="toastMessage"></span>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+      <button id="toastUndoBtn" onclick="toastUndo()" style="background:#fff;color:#333;border:none;border-radius:4px;padding:5px 12px;font-size:13px;font-weight:bold;cursor:pointer">Undo</button>
+      <button onclick="dismissToast()" style="background:transparent;color:#aaa;border:none;font-size:18px;line-height:1;cursor:pointer;padding:0 4px">&times;</button>
+    </div>
+  </div>
+
   <!-- Load modular scripts in order, then legacy code -->
   <script src="repiano-js/config.js"></script>
   <script src="repiano-js/firebase-config.js"></script>
