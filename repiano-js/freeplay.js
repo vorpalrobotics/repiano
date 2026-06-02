@@ -241,6 +241,22 @@ function formatPriorityCell(itemName, statsCache) {
          (evalGlyph ? `<br><span style="font-size:x-small">${evalGlyph}</span>` : '');
 }
 
+function formatRepTimeCell(item, statsCache) {
+  const repTime = item.repTime;
+  if (!repTime || repTime <= 0) {
+    return "<span style='color:#999'>—</span>";
+  }
+
+  const stats = statsCache[item.name];
+  const totalMs = stats ? stats.totalTime : 0;
+  const totalMinutes = totalMs / 60000;
+  const reps = totalMinutes > 0 ? Math.round(totalMinutes / repTime) : 0;
+  const repTimeDisplay = (repTime === Math.floor(repTime)) ? String(repTime) : repTime.toFixed(1);
+
+  return `<span style='color:#666'>${repTimeDisplay} min</span><br>` +
+         `<span style='color:#888;font-size:small'>~${reps} reps</span>`;
+}
+
 // Track current sort state
 let freePlaySortBy = 'practice'; // 'name', 'practice', 'category'
 let freePlaySortDirection = 'asc'; // 'asc' or 'desc'
@@ -337,6 +353,7 @@ function displayFreePlay(edit=-1) {
         "<td style='font-size:small;white-space:nowrap'>"+stats+"</td>"+
         "<td style='font-size:small;text-align:center;white-space:nowrap;padding:4px'>"+editPriorityCell+"</td>"+
         "<td><input type=text id=freePlayEditDescription value='"+freePlay[i].description+"' maxlength=100 style=width:95%;x-overflow:auto></td>"+
+        "<td><input type=number id=freePlayEditRepTime value='"+(freePlay[i].repTime||'')+"' min=0 step=0.1 placeholder='min' style='width:4em;text-align:center'></td>"+
         "<td><select id=freePlayEditCategory>";
         presetCats.forEach(cat => {
           t += "<option value='"+cat.name+"'>"+cat.description+"</option>";
@@ -357,12 +374,14 @@ function displayFreePlay(edit=-1) {
 
     const stats = formatPracticeStats(freePlay[i].name, practiceStats);
     const priorityCell = formatPriorityCell(freePlay[i].name, practiceStats);
+    const repTimeCell = formatRepTimeCell(freePlay[i], practiceStats);
     const cat = presetCats.find(cat => cat.name === freePlay[i].category);
     t += "<td onclick='gotoPreset(\""+freePlay[i].name+"\",\"freePlayContainer\")' title='Load this preset in the practice area' style=cursor:pointer>"+
           "<i class=\"fa-solid fa-square-arrow-up-right\" style=opacity:0.3;padding:3px></i> "+freePlay[i].name+"</td>"+
           "<td style='font-size:small;white-space:nowrap;padding:4px'>"+stats+"</td>"+
           "<td style='font-size:small;text-align:center;white-space:nowrap;padding:4px'>"+priorityCell+"</td>"+
           "<td>"+freePlay[i].description+"</td>"+
+          "<td style='font-size:small;text-align:center;white-space:nowrap;padding:4px'>"+repTimeCell+"</td>"+
           "<td>"+avail(cat.description,'Miscellaneous')+"</td>";
     if (freePlay[i].deleted) {
       t += "<td style=text-align:center;min-width:2eml;padding:4px>"+
@@ -383,6 +402,7 @@ function displayFreePlay(edit=-1) {
     "<td></td>"+ // empty Practice column for new item row
     "<td></td>"+ // empty Priority column for new item row
     "<td><input type=text id=freePlayDescription placeholder='New item description of practice activity' maxlength=100 style=width:95%;x-overflow:auto></td>"+
+    "<td><input type=number id=freePlayNewRepTime min=0 step=0.1 placeholder='Rep min' style='width:5em;text-align:center'></td>"+
     "<td><select id=freePlayCategory>";
     presetCats.forEach(cat => {
       t += "<option value='"+cat.name+"'>"+cat.description+"</option>";
@@ -428,7 +448,7 @@ function displayFreePlay(edit=-1) {
           placeholder = document.createElement('tr');
           placeholder.style.border = "3px dashed #ccc"; // Example styling
           placeholder.style.height = `${row.offsetHeight}px`; // Match the height of the original row
-          placeholder.innerHTML = "<td colspan='8' style=text-align:center;background-color:lightgray>"+
+          placeholder.innerHTML = "<td colspan='9' style=text-align:center;background-color:lightgray>"+
             "MOVING: <strong>"+ row.cells[1].textContent+"</strong></td>"; // Adjust colspan as needed
 
           // Insert placeholder
@@ -527,12 +547,17 @@ function addNewFreePlay() {
   const cat = document.getElementById("freePlayCategory").value.trim();
 
   if (name && desc && cat) {
-    freePlay.push({name: name, description: desc, category: cat, deleted: false, isFreePlay: true});
+    const repTimeRaw = parseFloat(document.getElementById("freePlayNewRepTime").value);
+    const repTime = (isFinite(repTimeRaw) && repTimeRaw > 0) ? repTimeRaw : null;
+    const newItem = {name, description: desc, category: cat, deleted: false, isFreePlay: true};
+    if (repTime !== null) newItem.repTime = repTime;
+    freePlay.push(newItem);
     saveFreePlay();
     displayFreePlay();
     createPresetMenu(); // item added
     document.getElementById("freePlayName").value = "";
     document.getElementById("freePlayDescription").value = "";
+    document.getElementById("freePlayNewRepTime").value = "";
   }
 }
 
@@ -541,7 +566,11 @@ async function saveEditFreePlay(edit) {
   const cat = document.getElementById("freePlayEditCategory").value.trim();
 
   if (desc && cat) {
-    freePlay[edit] = {name: freePlay[edit].name, description: desc, category: cat, deleted: false, isFreePlay: true};
+    const repTimeRaw = parseFloat(document.getElementById("freePlayEditRepTime").value);
+    const repTime = (isFinite(repTimeRaw) && repTimeRaw > 0) ? repTimeRaw : null;
+    const updated = {name: freePlay[edit].name, description: desc, category: cat, deleted: false, isFreePlay: true};
+    if (repTime !== null) updated.repTime = repTime;
+    freePlay[edit] = updated;
     await saveFreePlay();
     displayFreePlay();
     createPresetMenu(); // item modified
