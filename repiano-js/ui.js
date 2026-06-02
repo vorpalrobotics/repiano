@@ -228,3 +228,55 @@ function showPlayedNoteErrors(note, hand, index, errors) {
     ntp.innerHTML = "";
   }
 }
+
+// Toast notification system
+// Usage: showToast("message", { undoFn: () => ..., duration: 15000, type: 'info' })
+let _toastTimer = null;
+let _toastFadeTimer = null;
+let _toastUndoFn = null;
+
+function _cancelToast() {
+  if (_toastTimer)     { clearTimeout(_toastTimer);     _toastTimer = null; }
+  if (_toastFadeTimer) { clearTimeout(_toastFadeTimer); _toastFadeTimer = null; }
+  _toastUndoFn = null;
+  const el = document.getElementById('toastContainer');
+  if (el) {
+    el.style.transition = 'none';
+    el.style.opacity = '1';
+  }
+}
+
+function showToast(message, { undoFn = null, duration = 15000, type = 'info' } = {}) {
+  _cancelToast();
+  _toastUndoFn = undoFn;
+
+  const el = document.getElementById('toastContainer');
+  document.getElementById('toastMessage').textContent = message;
+  document.getElementById('toastUndoBtn').style.display = undoFn ? 'inline-block' : 'none';
+
+  const borderColors = { info: '#555', warning: '#b8860b', success: '#1a6b1a' };
+  el.style.borderLeft = '4px solid ' + (borderColors[type] || borderColors.info);
+  el.style.opacity = '1';
+  el.style.transition = 'none';
+  el.style.display = 'block';
+
+  const fadeDuration = 5000;
+  _toastFadeTimer = setTimeout(() => {
+    el.style.transition = `opacity ${fadeDuration / 1000}s ease`;
+    el.style.opacity = '0';
+  }, duration - fadeDuration);
+
+  _toastTimer = setTimeout(() => dismissToast(), duration);
+}
+
+function dismissToast() {
+  _cancelToast();
+  const el = document.getElementById('toastContainer');
+  if (el) el.style.display = 'none';
+}
+
+function toastUndo() {
+  const fn = _toastUndoFn;
+  dismissToast();
+  if (fn) fn();
+}

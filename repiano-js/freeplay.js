@@ -535,10 +535,20 @@ function displayFreePlay(edit=-1) {
 }
 
 function deleteFreePlay(index, value=true) {
+  const name = freePlay[index].name;
   freePlay[index].deleted = value;
   saveFreePlay();
-  displayFreePlay(); // redisplay
-  createPresetMenu(); // items changed
+  displayFreePlay();
+  createPresetMenu();
+  if (value === true) {
+    showToast(`"${name}" hidden from Presets menu.`, {
+      undoFn: () => {
+        const idx = freePlay.findIndex(fp => fp.name === name);
+        if (idx >= 0) deleteFreePlay(idx, false);
+      },
+      duration: 15000
+    });
+  }
 }
 
 function addNewFreePlay() {
