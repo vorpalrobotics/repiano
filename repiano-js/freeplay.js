@@ -29,6 +29,7 @@ function computeBasePriority(mode, lastDate) {
 }
 
 function computePriority(mode, lastDate, selfEval) {
+  if (lastDate && daysSinceFloat(lastDate) < 1) return 0;
   const base = computeBasePriority(mode, lastDate);
   const offset = freePlayEvalOffsets[selfEval] ?? 0;
   return Math.max(0, Math.min(99, base + offset));
