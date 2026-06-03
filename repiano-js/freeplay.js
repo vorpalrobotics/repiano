@@ -21,15 +21,19 @@ function daysSinceFloat(date) {
   return (Date.now() - past) / (1000 * 60 * 60 * 24);
 }
 
-function computeBasePriority(mode, lastDate) {
-  if (!lastDate) return 70;
-  const days = daysSinceFloat(lastDate);
-  const target = freePlayTargetDays[mode] || 7;
-  return Math.min(99, Math.floor(100 * (1 - Math.pow(0.5, days / target))));
+function getMinPracticeMinutes(item) {
+  return (item && item.repTime > 0) ? Math.max(item.repTime * 3, 5) : 5;
 }
 
-function computePriority(mode, lastDate, selfEval) {
-  const base = computeBasePriority(mode, lastDate);
+function computeBasePriority(mode, effectiveDays) {
+  if (effectiveDays === null) return 70;
+  const target = freePlayTargetDays[mode] || 7;
+  return Math.min(99, Math.floor(100 * (1 - Math.pow(0.5, effectiveDays / target))));
+}
+
+function computePriority(mode, lastDate, selfEval, completeness = 1.0) {
+  const effectiveDays = lastDate ? daysSinceFloat(lastDate) * (1 - completeness) : null;
+  const base = computeBasePriority(mode, effectiveDays);
   const offset = freePlayEvalOffsets[selfEval] ?? 0;
   return Math.max(0, Math.min(99, base + offset));
 }
@@ -159,32 +163,34 @@ function formatTimeAsDaysHours(milliseconds) {
 
 // Build a cache of practice statistics for all free play items
 function buildPracticeStatsCache() {
-  const stats = {}; // { itemName: { lastDate: "YYYY-MM-DD", totalTime: ms } }
-  
+  const stats = {};
+  const todayStr = todayDate();
+
   for (const key in runHistory) {
     if (key.includes("|Free Play:") && key.endsWith("|NA")) {
       const [date, presetPart, hand] = key.split("|");
       const itemName = presetPart.replace("Free Play:", "");
-      
+
       if (!stats[itemName]) {
-        stats[itemName] = { lastDate: date, totalTime: 0 };
+        stats[itemName] = { lastDate: date, totalTime: 0, todayTime: 0 };
       }
-      
-      // Update last date if this is more recent
+
       if (date > stats[itemName].lastDate) {
         stats[itemName].lastDate = date;
       }
-      
-      // Add to total time
+
       const elapsed = runHistory[key].elapsed || runHistory[key].wallTime || 0;
       stats[itemName].totalTime += elapsed;
+      if (date === todayStr) {
+        stats[itemName].todayTime += elapsed;
+      }
     }
   }
 
   // Add learning mode and self-eval for all known free play items
   for (const item of freePlay) {
     if (!stats[item.name]) {
-      stats[item.name] = { lastDate: null, totalTime: 0 };
+      stats[item.name] = { lastDate: null, totalTime: 0, todayTime: 0 };
     }
     stats[item.name].learningMode = avail(runHistory[".PREF.LEARNINGSCHEDULE." + stripPresetModifiers(item.name)], "begin");
     stats[item.name].selfEval = avail(runHistory[".PREF.SELFEVAL." + item.name], "not_evaluated");
@@ -220,13 +226,21 @@ function formatPracticeStats(itemName, statsCache) {
          `<span style='color:#666'>total: ${totalFormatted}</span>`;
 }
 
-function formatPriorityCell(itemName, statsCache) {
+function formatPriorityCell(item, statsCache) {
+  const itemName = typeof item === 'string' ? item : item.name;
   const stats = statsCache[itemName];
   const mode = stats ? (stats.learningMode || 'begin') : 'begin';
   const selfEval = stats ? (stats.selfEval || 'not_evaluated') : 'not_evaluated';
   const lastDate = stats ? stats.lastDate : null;
 
-  const priority = computePriority(mode, lastDate, selfEval);
+  const todayStr = todayDate();
+  const todayTimeMs = stats ? (stats.todayTime || 0) : 0;
+  const todayTimeMin = todayTimeMs / 60000;
+  const threshold = getMinPracticeMinutes(typeof item === 'string' ? null : item);
+  const completeness = lastDate === todayStr ? Math.min(1.0, todayTimeMin / threshold) : 1.0;
+  const isPartial = lastDate === todayStr && completeness > 0 && completeness < 1.0;
+
+  const priority = computePriority(mode, lastDate, selfEval, completeness);
   const iconClass = learningScheduleIconName[mode] || learningScheduleIconName['begin'];
 
   let color;
@@ -238,7 +252,18 @@ function formatPriorityCell(itemName, statsCache) {
   const evalGlyph = { perfect: '★★★', good: '★★', fair: '★', poor: '☹', not_evaluated: '' }[selfEval] || '';
 
   return `<i class="${iconClass}" style="opacity:0.6;font-size:small"></i>&nbsp;<span style="color:${color};font-weight:bold">${priority}</span>` +
+         (isPartial ? '<span style="color:#a60;font-size:x-small" title="Full practice not yet completed today">*</span>' : '') +
          (evalGlyph ? `<br><span style="font-size:x-small">${evalGlyph}</span>` : '');
+}
+
+function computeCompleteness(item, statsCache) {
+  const stats = statsCache[item.name];
+  const lastDate = stats ? stats.lastDate : null;
+  const todayStr = todayDate();
+  if (lastDate !== todayStr) return 1.0;
+  const todayTimeMin = (stats.todayTime || 0) / 60000;
+  const threshold = getMinPracticeMinutes(item);
+  return Math.min(1.0, todayTimeMin / threshold);
 }
 
 function formatRepTimeCell(item, statsCache) {
@@ -323,12 +348,14 @@ function displayFreePlay(edit=-1) {
       const priorityA = computePriority(
         statsA ? (statsA.learningMode || 'begin') : 'begin',
         statsA ? statsA.lastDate : null,
-        statsA ? (statsA.selfEval || 'not_evaluated') : 'not_evaluated'
+        statsA ? (statsA.selfEval || 'not_evaluated') : 'not_evaluated',
+        computeCompleteness(a, practiceStats)
       );
       const priorityB = computePriority(
         statsB ? (statsB.learningMode || 'begin') : 'begin',
         statsB ? statsB.lastDate : null,
-        statsB ? (statsB.selfEval || 'not_evaluated') : 'not_evaluated'
+        statsB ? (statsB.selfEval || 'not_evaluated') : 'not_evaluated',
+        computeCompleteness(b, practiceStats)
       );
       comparison = priorityA - priorityB;
     }
@@ -337,6 +364,7 @@ function displayFreePlay(edit=-1) {
   });
   
   let t = ""; // will build up table rows
+  let hasPartialSessions = false;
   for (let idx = 0; idx < sortedIndices.length; idx++) {
     const i = sortedIndices[idx];
     if (freePlay[i].deleted && showFreePlayHidden === false) {
@@ -345,7 +373,7 @@ function displayFreePlay(edit=-1) {
     if (edit == i) {
       // this item is being edited
       const stats = formatPracticeStats(freePlay[i].name, practiceStats);
-      const editPriorityCell = formatPriorityCell(freePlay[i].name, practiceStats);
+      const editPriorityCell = formatPriorityCell(freePlay[i], practiceStats);
       t +=
         "<tr data-index="+i+">"+
         "<td><strong><em>EDIT</em></strong></td>"+ // no drag symbol while editing
@@ -373,8 +401,11 @@ function displayFreePlay(edit=-1) {
     t += "<tr draggable=true id=freeplay_"+i+" data-index="+i+"><td style=text-align:center;min-width:2em;padding:4px>&vellip;&vellip;</td>";
 
     const stats = formatPracticeStats(freePlay[i].name, practiceStats);
-    const priorityCell = formatPriorityCell(freePlay[i].name, practiceStats);
+    const priorityCell = formatPriorityCell(freePlay[i], practiceStats);
     const repTimeCell = formatRepTimeCell(freePlay[i], practiceStats);
+    if (computeCompleteness(freePlay[i], practiceStats) < 1.0 && (practiceStats[freePlay[i].name]?.lastDate === todayDate())) {
+      hasPartialSessions = true;
+    }
     const cat = presetCats.find(cat => cat.name === freePlay[i].category);
     t += "<td onclick='gotoPreset(\""+freePlay[i].name+"\",\"freePlayContainer\")' title='Load this preset in the practice area' style=cursor:pointer>"+
           "<i class=\"fa-solid fa-square-arrow-up-right\" style=opacity:0.3;padding:3px></i> "+freePlay[i].name+"</td>"+
@@ -410,7 +441,14 @@ function displayFreePlay(edit=-1) {
     t += "</select><td></td><td></td></tr>";
 
   tab.innerHTML = t;
-  
+
+  const footnoteEl = document.getElementById('freePlayFootnote');
+  if (footnoteEl) {
+    footnoteEl.innerHTML = hasPartialSessions
+      ? '<span style="font-size:x-small;color:#a60">* full practice not yet completed today — priority increased accordingly</span>'
+      : '';
+  }
+
   // Update sort indicators in headers
   const indicators = {
     name: document.getElementById("sortIndicatorName"),
