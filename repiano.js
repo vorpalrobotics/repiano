@@ -1112,6 +1112,15 @@ function updateDisplayedNotesToPlay(isErrorMap = false, keepNoteScope=false) {
            "<option value='poor'"+(currentSelfEval==='poor'?' selected':'')+">&#9785; Poor</option>"+
            "</select>"+
            "</div>"+
+           (function() {
+             const fpItem = freePlay.find(fp => fp.name === testOptions.shortName);
+             if (fpItem && fpItem.repTime > 0) {
+               const minMin = getMinPracticeMinutes(fpItem);
+               const minStr = (minMin === Math.floor(minMin)) ? String(minMin) : minMin.toFixed(1);
+               return `<p style=padding-left:20px;font-size:small;color:#a60>Minimum recommended: ${minStr} min to reset priority.</p>`;
+             }
+             return '';
+           })() +
            "<p style=padding-left:20px>Note: Free Play time data is not logged unless clock is started then stopped or a manual time is entered.<br>Manual entries REPLACE data for today. Clock times ADD to data for today.</p>";
         document.getElementById("notesLH").innerHTML = "";
         document.getElementById("labelLH").style.display = "none";
