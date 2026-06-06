@@ -32,7 +32,13 @@ function computeBasePriority(mode, effectiveDays) {
 }
 
 function computePriority(mode, lastDate, selfEval, completeness = 1.0) {
-  const effectiveDays = lastDate ? daysSinceFloat(lastDate) * (1 - completeness) : null;
+  let effectiveDays = null;
+  if (lastDate) {
+    const actual = daysSinceFloat(lastDate);
+    // Only apply completeness scaling when last practice was today;
+    // otherwise use actual days unchanged.
+    effectiveDays = (lastDate === todayDate()) ? actual * (1 - completeness) : actual;
+  }
   const base = computeBasePriority(mode, effectiveDays);
   const offset = freePlayEvalOffsets[selfEval] ?? 0;
   return Math.max(0, Math.min(99, base + offset));
