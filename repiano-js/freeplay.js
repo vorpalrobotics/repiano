@@ -288,9 +288,11 @@ function formatRepTimeCell(item, statsCache) {
          `<span style='color:#888;font-size:small'>~${reps} reps</span>`;
 }
 
-// Track current sort state
-let freePlaySortBy = 'practice'; // 'name', 'practice', 'category'
-let freePlaySortDirection = 'asc'; // 'asc' or 'desc'
+// Track current sort state — persisted in localStorage
+const _validSortColumns = ['name', 'practice', 'category', 'priority'];
+let freePlaySortBy = _validSortColumns.includes(localStorage.getItem('freePlaySortBy'))
+  ? localStorage.getItem('freePlaySortBy') : 'practice';
+let freePlaySortDirection = localStorage.getItem('freePlaySortDirection') === 'desc' ? 'desc' : 'asc';
 
 function sortFreePlayBy(column) {
   // Toggle direction if clicking the same column, otherwise reset to ascending
@@ -300,6 +302,8 @@ function sortFreePlayBy(column) {
     freePlaySortBy = column;
     freePlaySortDirection = column === 'priority' ? 'desc' : 'asc';
   }
+  localStorage.setItem('freePlaySortBy', freePlaySortBy);
+  localStorage.setItem('freePlaySortDirection', freePlaySortDirection);
   displayFreePlay();
 }
 
