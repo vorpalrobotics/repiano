@@ -636,7 +636,10 @@ async function saveEditFreePlay(edit) {
 }
 
 function getFreePlaySelfEval(name) {
-  return avail(runHistory ? runHistory[".PREF.SELFEVAL." + name] : null, "not_evaluated");
+  if (!runHistory) return "not_evaluated";
+  const setDate = runHistory[".PREF.SELFEVALDATE." + name];
+  if (setDate !== todayDate()) return "not_evaluated";
+  return avail(runHistory[".PREF.SELFEVAL." + name], "not_evaluated");
 }
 
 async function saveFreePlaySelfEval(evalValue) {
@@ -644,5 +647,6 @@ async function saveFreePlaySelfEval(evalValue) {
   const name = testOptions.shortName;
   if (runHistory === null) await loadRunHistory();
   runHistory[".PREF.SELFEVAL." + name] = evalValue;
+  runHistory[".PREF.SELFEVALDATE." + name] = todayDate();
   await saveRunHistory();
 }
