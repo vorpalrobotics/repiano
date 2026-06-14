@@ -272,6 +272,30 @@ function computeCompleteness(item, statsCache) {
   return Math.min(1.0, todayTimeMin / threshold);
 }
 
+// Suggested practice time range for the day:
+// low = time needed to bring all currently-red (overdue) items to a completed session
+// high = time needed to bring all not-yet-green items to a completed session
+function computeSuggestedPracticeRange(statsCache) {
+  let low = 0;
+  let high = 0;
+  for (const item of freePlay) {
+    if (item.deleted) continue;
+    const stats = statsCache[item.name];
+    const mode = stats ? (stats.learningMode || 'begin') : 'begin';
+    const selfEval = stats ? (stats.selfEval || 'not_evaluated') : 'not_evaluated';
+    const lastDate = stats ? stats.lastDate : null;
+    const completeness = computeCompleteness(item, statsCache);
+    const priority = computePriority(mode, lastDate, selfEval, completeness);
+
+    const todayTimeMin = (lastDate === todayDate()) ? (stats.todayTime || 0) / 60000 : 0;
+    const remaining = Math.max(0, getMinPracticeMinutes(item) - todayTimeMin);
+
+    if (priority >= 75) low += remaining;
+    if (priority >= 20) high += remaining;
+  }
+  return { low, high };
+}
+
 function formatRepTimeCell(item, statsCache) {
   const repTime = item.repTime;
   if (!repTime || repTime <= 0) {
@@ -457,6 +481,17 @@ function displayFreePlay(edit=-1) {
     footnoteEl.innerHTML = hasPartialSessions
       ? '<span style="font-size:x-small;color:#a60">* full practice not yet completed today — priority increased accordingly</span>'
       : '';
+  }
+
+  const suggestedTimeEl = document.getElementById('freePlaySuggestedTime');
+  if (suggestedTimeEl) {
+    const { low, high } = computeSuggestedPracticeRange(practiceStats);
+    if (high <= 0) {
+      suggestedTimeEl.innerHTML = 'Suggested practice today: all items up to date!';
+    } else {
+      const fmt = (m) => (m === Math.round(m)) ? String(Math.round(m)) : m.toFixed(1);
+      suggestedTimeEl.innerHTML = `Suggested practice today: ${fmt(low)}&ndash;${fmt(high)} min`;
+    }
   }
 
   // Update sort indicators in headers
