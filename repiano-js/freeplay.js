@@ -275,25 +275,38 @@ function computeCompleteness(item, statsCache) {
 // Suggested practice time range for the day:
 // low = time needed to bring all currently-red (overdue) items to a completed session
 // high = time needed to bring all not-yet-green items to a completed session
+// Both are floored so the suggestion never drops below a 10-minute total session.
 function computeSuggestedPracticeRange(statsCache) {
   let low = 0;
   let high = 0;
+  let totalToday = 0;
   for (const item of freePlay) {
-    if (item.deleted) continue;
     const stats = statsCache[item.name];
+    const lastDate = stats ? stats.lastDate : null;
+    const todayTimeMin = (lastDate === todayDate()) ? (stats.todayTime || 0) / 60000 : 0;
+    totalToday += todayTimeMin;
+
+    if (item.deleted) continue;
+
     const mode = stats ? (stats.learningMode || 'begin') : 'begin';
     const selfEval = stats ? (stats.selfEval || 'not_evaluated') : 'not_evaluated';
-    const lastDate = stats ? stats.lastDate : null;
     const completeness = computeCompleteness(item, statsCache);
     const priority = computePriority(mode, lastDate, selfEval, completeness);
 
-    const todayTimeMin = (lastDate === todayDate()) ? (stats.todayTime || 0) / 60000 : 0;
     const remaining = Math.max(0, getMinPracticeMinutes(item) - todayTimeMin);
 
     if (priority >= 75) low += remaining;
     if (priority >= 20) high += remaining;
   }
-  return { low, high };
+
+  const allCaughtUp = high <= 0;
+
+  // Never suggest less than a 10-minute total session for the day.
+  const minFloor = Math.max(0, 10 - totalToday);
+  low = Math.max(low, minFloor);
+  high = Math.max(high, low);
+
+  return { low, high, allCaughtUp, totalToday };
 }
 
 function formatRepTimeCell(item, statsCache) {
@@ -485,12 +498,14 @@ function displayFreePlay(edit=-1) {
 
   const suggestedTimeEl = document.getElementById('freePlaySuggestedTime');
   if (suggestedTimeEl) {
-    const { low, high } = computeSuggestedPracticeRange(practiceStats);
-    if (high <= 0) {
-      suggestedTimeEl.innerHTML = 'Suggested practice today: all items up to date!';
+    const { low, high, allCaughtUp, totalToday } = computeSuggestedPracticeRange(practiceStats);
+    if (allCaughtUp && totalToday >= 10) {
+      suggestedTimeEl.innerHTML = "You're all caught up. Maybe learn something new!";
     } else {
       const fmt = (m) => (m === Math.round(m)) ? String(Math.round(m)) : m.toFixed(1);
-      suggestedTimeEl.innerHTML = `Suggested practice today: ${fmt(low)}&ndash;${fmt(high)} min`;
+      suggestedTimeEl.innerHTML = (low === high)
+        ? `Suggested practice today: ${fmt(low)} min`
+        : `Suggested practice today: ${fmt(low)}&ndash;${fmt(high)} min`;
     }
   }
 
