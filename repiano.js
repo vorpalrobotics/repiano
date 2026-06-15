@@ -1097,6 +1097,14 @@ function updateDisplayedNotesToPlay(isErrorMap = false, keepNoteScope=false) {
         document.getElementById("notesRH").innerHTML =
            "<p style=font-size:x-large;padding-left:20px>Free Play: "+
               testOptions.shortName+"<br>"+testOptions.fullName+"</p>"+
+           (function() {
+             const fpItem = freePlay.find(fp => fp.name === testOptions.shortName);
+             const settings = (fpItem && fpItem.settings) ? fpItem.settings : '';
+             return "<p id=freePlaySettingsRow style=padding-left:20px;font-size:small>"+
+               "Settings: "+(settings ? settings : "<em style='color:#999'>(none)</em>")+
+               "&nbsp;<i class=\"fa-solid fa-pencil\" onclick=\"toggleFreePlaySettingsEdit()\" title=\"Edit settings\" style=\"cursor:pointer\"></i>"+
+               "</p>";
+           })()+
            "<br><div style=display:flex;align-items:center;flex-wrap:wrap;gap:8px>"+
            "<span style=padding-left:20px>Manually set minutes:&nbsp;</span>"+
            "<input id=freePlayManualInput type=number value='"+timesofar+

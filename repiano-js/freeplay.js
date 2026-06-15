@@ -427,7 +427,8 @@ function displayFreePlay(edit=-1) {
         "<td style=font-weight:bold>"+freePlay[i].name+"</td>"+
         "<td style='font-size:small;white-space:nowrap'>"+stats+"</td>"+
         "<td style='font-size:small;text-align:center;white-space:nowrap;padding:4px'>"+editPriorityCell+"</td>"+
-        "<td><input type=text id=freePlayEditDescription value='"+freePlay[i].description+"' maxlength=100 style=width:95%;x-overflow:auto></td>"+
+        "<td><input type=text id=freePlayEditDescription value='"+freePlay[i].description+"' maxlength=100 style=width:95%;x-overflow:auto placeholder='Description'><br>"+
+          "<input type=text id=freePlayEditSettings value='"+(freePlay[i].settings||'')+"' maxlength=100 style='width:95%;font-size:x-small' placeholder='Settings (optional)'></td>"+
         "<td><input type=number id=freePlayEditRepTime value='"+(freePlay[i].repTime||'')+"' min=0 step=0.1 placeholder='min' style='width:4em;text-align:center'></td>"+
         "<td><select id=freePlayEditCategory>";
         presetCats.forEach(cat => {
@@ -458,7 +459,9 @@ function displayFreePlay(edit=-1) {
           "<i class=\"fa-solid fa-square-arrow-up-right\" style=opacity:0.3;padding:3px></i> "+freePlay[i].name+"</td>"+
           "<td style='font-size:small;white-space:nowrap;padding:4px'>"+stats+"</td>"+
           "<td style='font-size:small;text-align:center;white-space:nowrap;padding:4px'>"+priorityCell+"</td>"+
-          "<td>"+freePlay[i].description+"</td>"+
+          "<td>"+freePlay[i].description+
+            (freePlay[i].settings ? "<br><span style='font-size:x-small;color:#666'>Settings: "+freePlay[i].settings+"</span>" : "")+
+          "</td>"+
           "<td style='font-size:small;text-align:center;white-space:nowrap;padding:4px'>"+repTimeCell+"</td>"+
           "<td>"+avail(cat.description,'Miscellaneous')+"</td>";
     if (freePlay[i].deleted) {
@@ -479,7 +482,8 @@ function displayFreePlay(edit=-1) {
     "<td><input type=text id=freePlayName placeholder='New item short name' maxlength=32></td>"+
     "<td></td>"+ // empty Practice column for new item row
     "<td></td>"+ // empty Priority column for new item row
-    "<td><input type=text id=freePlayDescription placeholder='New item description of practice activity' maxlength=100 style=width:95%;x-overflow:auto></td>"+
+    "<td><input type=text id=freePlayDescription placeholder='New item description of practice activity' maxlength=100 style=width:95%;x-overflow:auto><br>"+
+      "<input type=text id=freePlaySettings placeholder='Settings (optional)' maxlength=100 style='width:95%;font-size:x-small'></td>"+
     "<td><input type=number id=freePlayNewRepTime min=0 step=0.1 placeholder='Rep min' style='width:5em;text-align:center'></td>"+
     "<td><select id=freePlayCategory>";
     presetCats.forEach(cat => {
@@ -657,8 +661,10 @@ function addNewFreePlay() {
   if (name && desc && cat) {
     const repTimeRaw = parseFloat(document.getElementById("freePlayNewRepTime").value);
     const repTime = (isFinite(repTimeRaw) && repTimeRaw > 0) ? repTimeRaw : null;
+    const settings = document.getElementById("freePlaySettings").value.trim();
     const newItem = {name, description: desc, category: cat, deleted: false, isFreePlay: true};
     if (repTime !== null) newItem.repTime = repTime;
+    if (settings) newItem.settings = settings;
     freePlay.push(newItem);
     saveFreePlay();
     displayFreePlay();
@@ -676,8 +682,10 @@ async function saveEditFreePlay(edit) {
   if (desc && cat) {
     const repTimeRaw = parseFloat(document.getElementById("freePlayEditRepTime").value);
     const repTime = (isFinite(repTimeRaw) && repTimeRaw > 0) ? repTimeRaw : null;
+    const settings = document.getElementById("freePlayEditSettings").value.trim();
     const updated = {name: freePlay[edit].name, description: desc, category: cat, deleted: false, isFreePlay: true};
     if (repTime !== null) updated.repTime = repTime;
+    if (settings) updated.settings = settings;
     freePlay[edit] = updated;
     await saveFreePlay();
     displayFreePlay();
@@ -699,4 +707,35 @@ async function saveFreePlaySelfEval(evalValue) {
   runHistory[".PREF.SELFEVAL." + name] = evalValue;
   runHistory[".PREF.SELFEVALDATE." + name] = todayDate();
   await saveRunHistory();
+}
+
+// Switch the practice-screen Settings line into edit mode
+function toggleFreePlaySettingsEdit() {
+  const fpItem = freePlay.find(fp => fp.name === testOptions.shortName);
+  const settings = (fpItem && fpItem.settings) ? fpItem.settings : '';
+  const row = document.getElementById("freePlaySettingsRow");
+  if (!row) return;
+  row.innerHTML =
+    "Settings: <input type=text id=freePlaySettingsInput value='"+settings+"' maxlength=100 style='width:200px'>"+
+    "&nbsp;<i class=\"fa-regular fa-floppy-disk\" onclick=\"saveFreePlaySettingsEdit()\" title=\"Save settings\" style=\"cursor:pointer\"></i>";
+  const input = document.getElementById("freePlaySettingsInput");
+  input.focus();
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveFreePlaySettingsEdit();
+  });
+}
+
+// Save the practice-screen Settings field and return to display mode
+async function saveFreePlaySettingsEdit() {
+  const value = document.getElementById("freePlaySettingsInput").value.trim();
+  const fpItem = freePlay.find(fp => fp.name === testOptions.shortName);
+  if (fpItem) {
+    if (value) {
+      fpItem.settings = value;
+    } else {
+      delete fpItem.settings;
+    }
+    await saveFreePlay();
+  }
+  updateDisplayedNotesToPlay();
 }
